@@ -14,6 +14,7 @@
 #include <ATen/TracerMode.h>
 #include <c10/core/ScalarType.h>
 #include <c10/util/Deprecated.h>
+#include <ATen/native/Differential.h>
 #include <ATen/native/Resize.h>
 #include <ATen/native/TensorFactories.h>
 #include <c10/core/TensorOptions.h>
@@ -29,7 +30,7 @@
 #include <string>
 
 namespace at {
-namespace native {
+namespace native {  
 namespace {
 void window_function_checks(
     const char* function_name,
@@ -855,6 +856,32 @@ Tensor blackman_window(
   // from https://en.wikipedia.org/wiki/Window_function#Blackman_window
   auto window = native::arange(window_length, options).mul_(M_PI / static_cast<double>(window_length - 1));
   window = window.mul(4).cos_().mul_(0.08) - window.mul(2).cos_().mul_(0.5) + 0.42;
+  return periodic ? window.narrow(0, 0, window_length - 1) : window;
+}
+
+
+// ~~~~~~~~~~~~~~~~~~~~~~~~~~~ chebyshev_window ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Tensor chebyshev_window(int64_t window_length, const TensorOptions& options) {
+  return native::chebyshev_window(window_length, /*periodic=*/true, options);
+}
+
+Tensor chebyshev_window(
+    int64_t window_length,
+    bool periodic,
+    double beta,
+    int order,
+    const TensorOptions& options) {
+  window_function_checks("chebyshev_window", options, window_length);
+  if (window_length == 1) {
+    return native::ones({1}, options);
+  }
+  if (periodic) {
+    window_length += 1;
+  }
+  // from https://en.wikipedia.org/wiki/Window_function#Dolph-Chebyshev_window
+  auto window = native::arange(window_length, options).mul_(M_PI / static_cast<double>(window_length + 1));
+  window.cos_().mul_(beta).chebpoly_(order).div_(chebpoly_calc(beta, order))
   return periodic ? window.narrow(0, 0, window_length - 1) : window;
 }
 
