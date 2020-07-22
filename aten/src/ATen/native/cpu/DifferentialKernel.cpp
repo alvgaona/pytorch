@@ -23,4 +23,3 @@ REGISTER_DISPATCH(chebpoly_stub, &chebpoly_kernel);
 
 } // namespace native
 } // namespace at
-
