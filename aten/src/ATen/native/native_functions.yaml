@@ -716,6 +716,18 @@
 
 - func: cat.names_out(Tensor[] tensors, Dimname dim, *, Tensor(a!) out) -> Tensor(a!)
 
+- func: chebyshev_window(int window_length, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
+  use_c10_dispatcher: full
+
+- func: chebyshev_window.periodic(int window_length, bool periodic, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
+  use_c10_dispatcher: full
+
+- func: chebyshev_window.periodic_beta(int window_length, bool periodic, float beta, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
+  use_c10_dispatcher: full
+
+- func: chebyshev_window.periodic_beta_order(int window_length, bool periodic, float beta, int order, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor
+  use_c10_dispatcher: full
+
 - func: block_diag(Tensor[] tensors) -> Tensor
   use_c10_dispatcher: full
   variants: function
@@ -1014,6 +1026,18 @@
   dispatch:
     CPU: ctc_loss_backward_cpu
     CUDA: ctc_loss_backward_gpu
+
+- func: chebpoly(Tensor self, Scalar order) -> Tensor
+  use_c10_dispatcher: full
+  variants: function, method
+
+- func: chebpoly_(Tensor(a!) self, Scalar order) -> Tensor(a!)
+  variants: function, method
+
+- func: chebpoly.out(Tensor self, Tensor(a!) out, Scalar order) -> Tensor(a!)
+  variants: function
+  dispatch:
+    CPU: chebpoly_out
 
 - func: det(Tensor self) -> Tensor
   use_c10_dispatcher: full
