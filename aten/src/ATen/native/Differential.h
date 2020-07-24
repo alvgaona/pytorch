@@ -10,21 +10,21 @@ struct TensorIterator;
 
 namespace native {
 
-using chebpoly_fn = void (*)(TensorIterator&, Scalar, Scalar);
-
-DECLARE_DISPATCH(chebpoly_fn, chebploy_stub);
-
 static inline double chebpoly_calc(double x, int order) {
   double result;
   if (fabs(x) < 1) {
-    result = cos(order * acos(x));
+    result = std::cos(order * std::acos(x));
   } else if (x >= 1) {
-    result = acosh(order * acosh(x));
+    result = std::acosh(order * std::acosh(x));
   } else {
-    result = pow(-1, order) * cosh(order * acosh(-x));
+    result = std::pow(-1, order) * std::cosh(order * std::acosh(-x));
   }
   return result;
 }
+
+using chebpoly_fn = void (*)(TensorIterator&, Scalar);
+
+DECLARE_DISPATCH(chebpoly_fn, chebpoly_stub);
 
 } // namespace native
 } // namespace at
