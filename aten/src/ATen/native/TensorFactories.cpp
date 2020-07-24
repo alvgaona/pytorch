@@ -869,6 +869,21 @@ Tensor chebyshev_window(int64_t window_length, const TensorOptions& options) {
 Tensor chebyshev_window(
     int64_t window_length,
     bool periodic,
+    const TensorOptions& options) {
+  return native::chebyshev_window(window_length, periodic, /*beta=*/0.5, options);
+}
+
+Tensor chebyshev_window(
+    int64_t window_length,
+    bool periodic,
+    double beta,
+    const TensorOptions& options) {
+  return native::chebyshev_window(window_length, periodic, beta, /*order=*/1, options);
+}
+
+Tensor chebyshev_window(
+    int64_t window_length,
+    bool periodic,
     double beta,
     int order,
     const TensorOptions& options) {
@@ -881,7 +896,7 @@ Tensor chebyshev_window(
   }
   // from https://en.wikipedia.org/wiki/Window_function#Dolph-Chebyshev_window
   auto window = native::arange(window_length, options).mul_(M_PI / static_cast<double>(window_length + 1));
-  window.cos_().mul_(beta).chebpoly_(order).div_(chebpoly_calc(beta, order))
+  window.cos_().mul_(beta).chebpoly_(order).div_(chebpoly_calc(beta, order));
   return periodic ? window.narrow(0, 0, window_length - 1) : window;
 }
 
