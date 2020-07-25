@@ -1027,17 +1027,15 @@
     CPU: ctc_loss_backward_cpu
     CUDA: ctc_loss_backward_gpu
 
-- func: chebpoly(Tensor self, Scalar order) -> Tensor
+- func: chebpoly(Tensor self, int order) -> Tensor
   use_c10_dispatcher: full
   variants: function, method
 
-- func: chebpoly_(Tensor(a!) self, Scalar order) -> Tensor(a!)
+- func: chebpoly_(Tensor(a!) self, int order) -> Tensor(a!)
   variants: function, method
 
-- func: chebpoly.out(Tensor self, Tensor(a!) out, Scalar order) -> Tensor(a!)
+- func: chebpoly.out(Tensor self, int order, *, Tensor(a!) out) -> Tensor(a!)
   variants: function
-  dispatch:
-    CPU: chebpoly_out
 
 - func: det(Tensor self) -> Tensor
   use_c10_dispatcher: full
