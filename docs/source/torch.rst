@@ -375,6 +375,7 @@ Spectral Ops
     irfft
     stft
     istft
+    chebyshev_window
     bartlett_window
     blackman_window
     hamming_window
