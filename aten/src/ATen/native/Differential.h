@@ -10,7 +10,7 @@ struct TensorIterator;
 
 namespace native {
 
-static inline double chebpoly_calc(double x, int order) {
+static inline double chebpoly_calc(double x, uint32_t order) {
   double result;
   if (fabs(x) < 1) {
     result = std::cos(order * std::acos(x));
@@ -22,7 +22,7 @@ static inline double chebpoly_calc(double x, int order) {
   return result;
 }
 
-using chebpoly_fn = void (*)(TensorIterator&, Scalar);
+using chebpoly_fn = void (*)(TensorIterator&, uint32_t);
 
 DECLARE_DISPATCH(chebpoly_fn, chebpoly_stub);
 

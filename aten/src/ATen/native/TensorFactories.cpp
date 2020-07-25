@@ -885,7 +885,7 @@ Tensor chebyshev_window(
     int64_t window_length,
     bool periodic,
     double beta,
-    int order,
+    uint32_t order,
     const TensorOptions& options) {
   window_function_checks("chebyshev_window", options, window_length);
   if (window_length == 1) {
