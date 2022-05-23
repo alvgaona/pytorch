@@ -33,9 +33,7 @@ from ..qconfig_mapping_utils import (
 # TODO: revisit this list. Many helper methods shouldn't be public
 __all__ = [
     "check_is_valid_config_dict",
-    "check_is_valid_convert_custom_config_dict",
     "check_is_valid_fuse_custom_config_dict",
-    "check_is_valid_prepare_custom_config_dict",
     "compare_prepare_convert_qconfig_mappings",
     "generate_qconfig_map",
     "get_standalone_module_configs",
@@ -200,44 +198,6 @@ def check_is_valid_config_dict(config_dict: Any, allowed_keys: Set[str], dict_na
                 'Expected ' + dict_name + ' to have the following keys: ' +
                 str(allowed_keys) + '. But found \'' + k +
                 '\' instead.')
-
-
-def check_is_valid_prepare_custom_config_dict(prepare_custom_config_dict: Optional[Dict[str, Any]] = None) -> None:
-    r""" Checks if the given prepare_custom_config_dict has the correct keys
-
-    Args:
-      `prepare_custom_config_dict`: customization configuration dictionary for
-      quantization tool
-    """
-    if not prepare_custom_config_dict:
-        return
-
-    prepare_custom_config_dict_allowed_keys = {"standalone_module_name",
-                                               "standalone_module_class",
-                                               "float_to_observed_custom_module_class",
-                                               "non_traceable_module_name",
-                                               "non_traceable_module_class",
-                                               "input_quantized_idxs",
-                                               "output_quantized_idxs",
-                                               "preserved_attributes"}
-    check_is_valid_config_dict(prepare_custom_config_dict,
-                               prepare_custom_config_dict_allowed_keys, "prepare_custom_config_dict")
-
-
-def check_is_valid_convert_custom_config_dict(convert_custom_config_dict: Optional[Dict[str, Any]] = None) -> None:
-    r""" Checks if the given convert_custom_config_dict has the correct keys
-
-    Args:
-      `convert_custom_config_dict`: dictionary for custom configurations for
-      convert function
-    """
-    if not convert_custom_config_dict:
-        return
-
-    convert_custom_config_dict_allowed_keys = {"observed_to_quantized_custom_module_class",
-                                               "preserved_attributes"}
-    check_is_valid_config_dict(convert_custom_config_dict,
-                               convert_custom_config_dict_allowed_keys, "convert_custom_config_dict")
 
 
 def check_is_valid_fuse_custom_config_dict(fuse_custom_config_dict: Optional[Dict[str, Any]] = None) -> None:
