@@ -170,11 +170,8 @@ class C10_API intrusive_ptr_target {
    * i.e. no more calls to methods or accesses to members (we just can't
    * destruct it yet because we need the weakcount accessible).
    *
-   * Even if there are no weak references (i.e. your class is about to be
-   * destructed), this function is guaranteed to be called first.
-   * However, if you use your class for an object on the stack that is
-   * destructed by the scope (i.e. without intrusive_ptr), this function will
-   * not be called.
+   * If there are no weak references (i.e. your class is about to be
+   * destructed), this function WILL NOT be called.
    */
   virtual void release_resources() {}
 };
@@ -277,20 +274,26 @@ class intrusive_ptr final {
     }
   }
 
+  C10_ALWAYS_INLINE_UNLESS_MOBILE void reset_clean_up_weak_reference_path() {
+    // justification for const_cast: release_resources is basically a
+    // destructor and a destructor always mutates the object, even for const
+    // objects. NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDelete)
+    const_cast<std::remove_const_t<TTarget>*>(target_)->release_resources();
+    if (detail::atomic_weakcount_decrement(target_->weakcount_) == 0) {
+      delete target_;
+    }
+  }
+
   void reset_() noexcept {
     if (target_ != NullType::singleton() &&
         detail::atomic_refcount_decrement(target_->refcount_) == 0) {
-      // justification for const_cast: release_resources is basically a
-      // destructor and a destructor always mutates the object, even for const
-      // objects. NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDelete)
-      const_cast<std::remove_const_t<TTarget>*>(target_)->release_resources();
-
       // See comment above about weakcount. As long as refcount>0,
       // weakcount is one larger than the actual number of weak references.
       // So we need to decrement it here.
-      if (target_->weakcount_.load(std::memory_order_acquire) == 1 ||
-          detail::atomic_weakcount_decrement(target_->weakcount_) == 0) {
+      if (target_->weakcount_.load(std::memory_order_acquire) == 1) {
         delete target_;
+      } else {
+        reset_clean_up_weak_reference_path();
       }
     }
   }
