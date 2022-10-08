@@ -204,4 +204,28 @@ op_db: List[OpInfo] = [
         sample_inputs_func=partial(sample_inputs_window, std=random.uniform(0, 3)),
         error_inputs_func=error_inputs_gaussian_window,
     ),
+    make_signal_windows_opinfo(
+        name="signal.windows.hamming",
+        ref=make_signal_windows_ref(scipy.signal.windows.hamming),
+        sample_inputs_func=sample_inputs_window,
+        error_inputs_func=error_inputs_window,
+    ),
+    make_signal_windows_opinfo(
+        name="signal.windows.hann",
+        ref=make_signal_windows_ref(scipy.signal.windows.hann),
+        sample_inputs_func=sample_inputs_window,
+        error_inputs_func=error_inputs_window,
+    ),
+    make_signal_windows_opinfo(
+        name="signal.windows.blackman",
+        ref=make_signal_windows_ref(scipy.signal.windows.blackman),
+        sample_inputs_func=sample_inputs_window,
+        error_inputs_func=error_inputs_window,
+    ),
+    make_signal_windows_opinfo(
+        name="signal.windows.bartlett",
+        ref=make_signal_windows_ref(scipy.signal.windows.bartlett),
+        sample_inputs_func=sample_inputs_window,
+        error_inputs_func=error_inputs_window,
+    ),
 ]
