@@ -1,9 +1,11 @@
-import random
 import unittest
 from functools import partial
 
 from itertools import product
-from typing import List
+
+from typing import Callable, List, Tuple
+
+import numpy
 
 import torch
 from torch.testing._internal.common_utils import TEST_SCIPY
@@ -26,21 +28,8 @@ def sample_inputs_window(op_info, device, dtype, requires_grad, *args, **kwargs)
     additional keyword arguments.
     """
 
-    # Test a window size of length zero and one.
-    # If it's either symmetric or not doesn't matter in these sample inputs.
-    for size in range(2):
-        yield SampleInput(
-            size,
-            *args,
-            device=device,
-            dtype=dtype,
-            requires_grad=requires_grad,
-            **kwargs,
-        )
-
-    # For sizes larger than 1 we need to test both symmetric and non-symmetric windows.
-    # Note: sample input tensors must be kept rather small.
-    for size, sym in product(list(range(2, 6)), (True, False)):
+    # Tests window sizes up to 5 samples.
+    for size, sym in product(range(6), (True, False)):
         yield SampleInput(
             size,
             *args,
@@ -50,6 +39,60 @@ def sample_inputs_window(op_info, device, dtype, requires_grad, *args, **kwargs)
             requires_grad=requires_grad,
             **kwargs,
         )
+
+def reference_inputs_window(op_info, device, dtype, requires_grad, *args, **kwargs):
+    r"""Reference inputs function to use for windows which have a common signature, i.e.,
+    window size and sym only.
+
+    Implement other special functions for windows that have a specific signature.
+    See exponential and gaussian windows for instance.
+    """
+    yield from sample_inputs_window(
+        op_info, device, dtype, requires_grad, *args, **kwargs
+    )
+
+    cases = (8, 16, 32, 64, 128, 256)
+
+    for size in cases:
+        yield SampleInput(size, sym=False)
+        yield SampleInput(size, sym=True)
+
+
+def reference_inputs_exponential_window(
+    op_info, device, dtype, requires_grad, **kwargs
+):
+    yield from sample_inputs_window(op_info, device, dtype, requires_grad, **kwargs)
+
+    cases = (
+        (8, {"center": 4, "tau": 0.5}),
+        (16, {"center": 8, "tau": 2.5}),
+        (32, {"center": 16, "tau": 43.5}),
+        (64, {"center": 20, "tau": 3.7}),
+        (128, {"center": 62, "tau": 99}),
+        (256, {"tau": 10}),
+    )
+
+    for size, kw in cases:
+        yield SampleInput(size, sym=False, **kw)
+        kw["center"] = None
+        yield SampleInput(size, sym=True, **kw)
+
+
+def reference_inputs_gaussian_window(op_info, device, dtype, requires_grad, **kwargs):
+    yield from sample_inputs_window(op_info, device, dtype, requires_grad, **kwargs)
+
+    cases = (
+        (8, {"std": 0.1}),
+        (16, {"std": 1.2}),
+        (32, {"std": 2.1}),
+        (64, {"std": 3.9}),
+        (128, {"std": 4.5}),
+        (256, {"std": 10}),
+    )
+
+    for size, kw in cases:
+        yield SampleInput(size, sym=False, **kw)
+        yield SampleInput(size, sym=True, **kw)
 
 
 def error_inputs_window(op_info, device, *args, **kwargs):
@@ -93,11 +136,11 @@ def error_inputs_exponential_window(op_info, device, **kwargs):
         error_regex="Tau must be positive, got: -1 instead.",
     )
 
-    # Tests for non-symmetric windows and a given center value.
+    # Tests for symmetric windows and a given center value.
     yield ErrorInput(
-        SampleInput(3, center=1, sym=False, dtype=torch.float32, device=device),
+        SampleInput(3, center=1, sym=True, dtype=torch.float32, device=device),
         error_type=ValueError,
-        error_regex="Center must be 'None' for non-symmetric windows",
+        error_regex="Center must be None for symmetric windows",
     )
 
 
@@ -113,24 +156,34 @@ def error_inputs_gaussian_window(op_info, device, **kwargs):
     )
 
 
-def make_signal_windows_ref(fn):
-    r"""Wrapper for signal window references.
+def reference_signal_window(fn: Callable):
+    r"""Wrapper for scipy signal window references.
 
-    Particularly used for window references that don't have a matching signature with
+    Discards keyword arguments for window reference functions that don't have a matching signature with
     torch, e.g., gaussian window.
     """
-    def _fn(*args, **kwargs):
-        # Remove torch-specific kwargs
-        for torch_key in {'device', 'layout', 'dtype', 'requires_grad'}:
-            if torch_key in kwargs:
-                kwargs.pop(torch_key)
-        return fn(*args, **kwargs)
 
+    def _fn(
+        *args,
+        dtype=numpy.float64,
+        device=None,
+        layout=torch.strided,
+        requires_grad=False,
+        **kwargs,
+    ):
+        r"""The unused arguments are defined to disregard those values"""
+        return fn(*args, **kwargs).astype(dtype)
     return _fn
 
 
 def make_signal_windows_opinfo(
-    name, ref, sample_inputs_func, error_inputs_func, *, skips=()
+    name: str,
+    ref: Callable,
+    sample_inputs_func: Callable,
+    reference_inputs_func: Callable,
+    error_inputs_func: Callable,
+    *,
+    skips: Tuple[DecorateInfo] = (),
 ):
     r"""Helper function to create OpInfo objects related to different windows."""
     return OpInfo(
@@ -139,6 +192,7 @@ def make_signal_windows_opinfo(
         dtypes=floating_types_and(torch.bfloat16, torch.float16),
         dtypesIfCUDA=floating_types_and(torch.bfloat16, torch.float16),
         sample_inputs_func=sample_inputs_func,
+        reference_inputs_func=reference_inputs_func,
         error_inputs_func=error_inputs_func,
         supports_out=False,
         supports_autograd=False,
@@ -181,10 +235,46 @@ def make_signal_windows_opinfo(
                 "test_op_has_batch_rule",
             ),
             DecorateInfo(
-                unittest.skip("Skipped"),
-                "test_schema_correctness",
+                unittest.expectedFailure,
                 "TestSchemaCheckModeOpInfo",
-                dtypes=[torch.float16]
+                "test_schema_correctness",
+                dtypes=[torch.float16],
+                device_type="cpu",
+            ),
+            DecorateInfo(
+                unittest.expectedFailure,
+                "TestDecomp",
+                "test_comprehensive",
+                dtypes=[torch.float16],
+                device_type="cpu",
+            ),
+            DecorateInfo(
+                unittest.expectedFailure,
+                "TestMeta",
+                "test_dispatch_meta",
+                dtypes=[torch.float16],
+                device_type="cpu",
+            ),
+            DecorateInfo(
+                unittest.expectedFailure,
+                "TestMeta",
+                "test_meta",
+                dtypes=[torch.float16],
+                device_type="cpu",
+            ),
+            DecorateInfo(
+                unittest.expectedFailure,
+                "TestMeta",
+                "test_dispatch_symbolic_meta",
+                dtypes=[torch.float16],
+                device_type="cpu",
+            ),
+            DecorateInfo(
+                unittest.expectedFailure,
+                "TestNNCOpInfo",
+                "test_nnc_correctness",
+                dtypes=[torch.float16],
+                device_type="cpu",
             ),
             *skips,
         ),
@@ -194,44 +284,57 @@ def make_signal_windows_opinfo(
 op_db: List[OpInfo] = [
     make_signal_windows_opinfo(
         name="signal.windows.cosine",
-        ref=make_signal_windows_ref(scipy.signal.windows.cosine),
+        ref=reference_signal_window(scipy.signal.windows.cosine)
+        if TEST_SCIPY
+        else None,
         sample_inputs_func=sample_inputs_window,
+        reference_inputs_func=reference_inputs_window,
         error_inputs_func=error_inputs_window,
     ),
     make_signal_windows_opinfo(
         name="signal.windows.exponential",
-        ref=make_signal_windows_ref(scipy.signal.windows.exponential),
-        sample_inputs_func=partial(sample_inputs_window, tau=random.uniform(0, 10)),
+        ref=reference_signal_window(scipy.signal.windows.exponential)
+        if TEST_SCIPY
+        else None,
+        sample_inputs_func=partial(sample_inputs_window, tau=2.78),
+        reference_inputs_func=partial(reference_inputs_exponential_window, tau=2.78),
         error_inputs_func=error_inputs_exponential_window,
     ),
     make_signal_windows_opinfo(
         name="signal.windows.gaussian",
-        ref=make_signal_windows_ref(scipy.signal.windows.gaussian),
-        sample_inputs_func=partial(sample_inputs_window, std=random.uniform(0, 3)),
+        ref=reference_signal_window(scipy.signal.windows.gaussian)
+        if TEST_SCIPY
+        else None,
+        sample_inputs_func=partial(sample_inputs_window, std=1.92),
+        reference_inputs_func=partial(reference_inputs_gaussian_window, std=1.92),
         error_inputs_func=error_inputs_gaussian_window,
     ),
     make_signal_windows_opinfo(
         name="signal.windows.hamming",
-        ref=make_signal_windows_ref(scipy.signal.windows.hamming),
+        ref=reference_signal_window(scipy.signal.windows.hamming),
         sample_inputs_func=sample_inputs_window,
+        reference_inputs_func=reference_inputs_window,
         error_inputs_func=error_inputs_window,
     ),
     make_signal_windows_opinfo(
         name="signal.windows.hann",
-        ref=make_signal_windows_ref(scipy.signal.windows.hann),
+        ref=reference_signal_window(scipy.signal.windows.hann),
         sample_inputs_func=sample_inputs_window,
+        reference_inputs_func=reference_inputs_window,
         error_inputs_func=error_inputs_window,
     ),
     make_signal_windows_opinfo(
         name="signal.windows.blackman",
-        ref=make_signal_windows_ref(scipy.signal.windows.blackman),
+        ref=reference_signal_window(scipy.signal.windows.blackman),
         sample_inputs_func=sample_inputs_window,
+        reference_inputs_func=reference_inputs_window,
         error_inputs_func=error_inputs_window,
     ),
     make_signal_windows_opinfo(
         name="signal.windows.bartlett",
-        ref=make_signal_windows_ref(scipy.signal.windows.bartlett),
+        ref=reference_signal_window(scipy.signal.windows.bartlett),
         sample_inputs_func=sample_inputs_window,
+        reference_inputs_func=reference_inputs_window,
         error_inputs_func=error_inputs_window,
     ),
 ]
