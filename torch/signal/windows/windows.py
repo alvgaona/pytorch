@@ -320,9 +320,6 @@ def hamming(M: int,
     if M == 0:
         return torch.empty((0,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad)
 
-    if M == 1:
-        return torch.ones((1,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad)
-
     constant = 2 * torch.pi / (M if not sym and M > 1 else M - 1)
 
     k = torch.linspace(start=0,
@@ -380,9 +377,6 @@ def blackman(M: int,
 
     if M == 0:
         return torch.empty((0,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad)
-
-    if M == 1:
-        return torch.ones((1,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad)
 
     constant_1 = 2 * torch.pi / (M if not sym and M > 1 else M - 1)
     constant_2 = 2 * constant_1
