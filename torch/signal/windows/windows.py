@@ -298,6 +298,7 @@ def gaussian(
 
     return torch.exp(-k ** 2)
 
+
 @_add_docstr(
     r"""
     """
@@ -322,19 +323,15 @@ def hamming(M: int,
     if M == 1:
         return torch.ones((1,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad)
 
-    constant = 2 * torch.pi / (M if not sym else M - 1)
+    constant = 2 * torch.pi / (M if not sym and M > 1 else M - 1)
 
-    """
-    Note that non-integer step is subject to floating point rounding errors when comparing against end;
-    thus, to avoid inconsistency, we added an epsilon equal to `step / 2` to `end`.
-    """
-    k = torch.arange(start=0,
-                     end=(M - 1) * constant + constant / 2,
-                     step=constant,
-                     dtype=dtype,
-                     layout=layout,
-                     device=device,
-                     requires_grad=requires_grad)
+    k = torch.linspace(start=0,
+                       end=(M - 1) * constant,
+                       steps=M,
+                       dtype=dtype,
+                       layout=layout,
+                       device=device,
+                       requires_grad=requires_grad)
 
     return alpha - beta * torch.cos(k)
 
@@ -387,28 +384,28 @@ def blackman(M: int,
     if M == 1:
         return torch.ones((1,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad)
 
-    constant_1 = 2 * torch.pi / (M if not sym else M - 1)
+    constant_1 = 2 * torch.pi / (M if not sym and M > 1 else M - 1)
     constant_2 = 2 * constant_1
 
     """
     Note that non-integer step is subject to floating point rounding errors when comparing against end;
     thus, to avoid inconsistency, we added an epsilon equal to `step / 2` to `end`.
     """
-    k_1 = torch.arange(start=0,
-                       end=(M - 1) * constant_1 + constant_1 / 2,
-                       step=constant_1,
-                       dtype=dtype,
-                       layout=layout,
-                       device=device,
-                       requires_grad=requires_grad)
+    k_1 = torch.linspace(start=0,
+                         end=(M - 1) * constant_1,
+                         steps=M,
+                         dtype=dtype,
+                         layout=layout,
+                         device=device,
+                         requires_grad=requires_grad)
 
-    k_2 = torch.arange(start=0,
-                       end=(M - 1) * constant_2 + constant_2 / 2,
-                       step=constant_2,
-                       dtype=dtype,
-                       layout=layout,
-                       device=device,
-                       requires_grad=requires_grad)
+    k_2 = torch.linspace(start=0,
+                         end=(M - 1) * constant_2,
+                         steps=M,
+                         dtype=dtype,
+                         layout=layout,
+                         device=device,
+                         requires_grad=requires_grad)
 
     return 0.42 - 0.5 * torch.cos(k_1) + 0.08 * torch.cos(k_2)
 
@@ -418,8 +415,8 @@ def blackman(M: int,
     """
 )
 def bartlett(M: int,
-             sym: bool = True,
              *,
+             sym: bool = True,
              dtype: torch.dtype = None,
              layout: torch.layout = torch.strided,
              device: torch.device = None,
@@ -432,22 +429,15 @@ def bartlett(M: int,
     if M == 0:
         return torch.empty((0,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad)
 
-    if M == 1:
-        return torch.ones((1,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad)
-
     start = -1
-    constant = 2 / (M if not sym else M - 1)
+    constant = 2 / (M if not sym and M > 1 else M - 1)
 
-    """
-    Note that non-integer step is subject to floating point rounding errors when comparing against end;
-    thus, to avoid inconsistency, we added an epsilon equal to `step / 2` to `end`.
-    """
-    k = torch.arange(start=start,
-                     end=start + (M - 1) * constant + constant / 2,
-                     step=constant,
-                     dtype=dtype,
-                     layout=layout,
-                     device=device,
-                     requires_grad=requires_grad)
+    k = torch.linspace(start=start,
+                       end=(start + (M - 1)) * constant,
+                       steps=M,
+                       dtype=dtype,
+                       layout=layout,
+                       device=device,
+                       requires_grad=requires_grad)
 
     return 1 - torch.abs(k)
