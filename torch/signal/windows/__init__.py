@@ -10,6 +10,7 @@ from .windows import (
     hann,
     kaiser,
     nuttall,
+    taylor,
 )
 
 
@@ -25,4 +26,5 @@ __all__ = [
     "hann",
     "kaiser",
     "nuttall",
+    "taylor",
 ]

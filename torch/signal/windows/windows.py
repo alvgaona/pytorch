@@ -1,6 +1,6 @@
 # mypy: allow-untyped-defs
 from collections.abc import Callable, Iterable
-from math import sqrt
+from math import acosh, sqrt
 from typing import TypeVar
 
 import torch
@@ -20,6 +20,7 @@ __all__ = [
     "hann",
     "kaiser",
     "nuttall",
+    "taylor",
 ]
 
 _T = TypeVar("_T")
@@ -881,3 +882,136 @@ def nuttall(
         device=device,
         requires_grad=requires_grad,
     )
+
+
+@_add_docstr(
+    r"""
+Computes the Taylor window.
+
+The Taylor window taper approximates the Dolph-Chebyshev window's constant
+sidelobe level while avoiding its edge impulses. It is widely used for sidelobe
+control in radar and array signal processing.
+
+The Taylor window of length :math:`M` is defined as follows:
+
+.. math::
+    w_n = 1 + 2 \sum_{m=1}^{\bar{n} - 1} F_m
+          \cos \left( \frac{2 \pi m \left( n - \frac{M}{2} + \frac{1}{2} \right)}{M} \right)
+
+where the coefficients :math:`F_m` are a function of the number of nearly
+constant-level sidelobes :attr:`nbar` and the sidelobe level :attr:`sll`. See
+the reference for the closed form of :math:`F_m`.
+    """,
+    r"""
+
+{normalization}
+
+Args:
+    {M}
+
+Keyword args:
+    nbar (int, optional): the number of nearly constant-level sidelobes adjacent
+        to the mainlobe. Must be positive. Default: 4.
+    sll (float, optional): the desired suppression of the sidelobe level in
+        decibels (dB) relative to the mainlobe. Default: 30.0.
+    norm (bool, optional): if `True`, divides the window by the largest
+        (middle) value, normalizing the peak to 1 such that every sidelobe is
+        below the mainlobe. Default: `True`.
+    {sym}
+    {dtype}
+    {layout}
+    {device}
+    {requires_grad}
+
+References::
+
+    - Armin Doerry, "Catalog of Window Taper Functions for Sidelobe Control", 2017.
+      https://www.osti.gov/servlets/purl/1365510
+
+Examples::
+
+    >>> # Generates a symmetric Taylor window.
+    >>> torch.signal.windows.taylor(10)
+    tensor([0.2665, 0.4299, 0.6621, 0.8662, 0.9843, 0.9843, 0.8662, 0.6621, 0.4299, 0.2665])
+
+    >>> # Generates a periodic Taylor window.
+    >>> torch.signal.windows.taylor(10, sym=False)
+    tensor([0.2625, 0.4010, 0.6089, 0.8084, 0.9490, 1.0000, 0.9490, 0.8084, 0.6089, 0.4010])
+""".format(**window_common_args),
+)
+def taylor(
+    M: int,
+    *,
+    nbar: int = 4,
+    sll: float = 30.0,
+    norm: bool = True,
+    sym: bool = True,
+    dtype: torch.dtype | None = None,
+    layout: torch.layout = torch.strided,
+    device: torch.device | None = None,
+    requires_grad: bool = False,
+) -> Tensor:
+    if dtype is None:
+        dtype = torch.get_default_dtype()
+
+    _window_function_checks("taylor", M, dtype, layout)
+
+    if nbar < 1:
+        raise ValueError(f"taylor window requires nbar >= 1, got nbar={nbar}")
+
+    if M == 0:
+        return torch.empty(
+            (0,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad
+        )
+
+    if M == 1:
+        return torch.ones(
+            (1,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad
+        )
+
+    # For periodic windows compute the symmetric window of length M + 1 and drop
+    # the last sample, matching SciPy's extend/truncate convention.
+    M_ext = M if sym else M + 1
+
+    # Taylor coefficients F_m are scalar constants derived from the sidelobe
+    # specification; compute them in Python following SciPy's formulation.
+    b = 10.0 ** (sll / 20.0)
+    a = acosh(b) / torch.pi
+    s2 = nbar * nbar / (a * a + (nbar - 0.5) ** 2)
+    fm = []
+    for m in range(1, nbar):
+        m2 = m * m
+        numer = 1.0 if (m - 1) % 2 == 0 else -1.0
+        for j in range(1, nbar):
+            numer *= 1 - m2 / (s2 * (a * a + (j - 0.5) ** 2))
+        denom = 2.0
+        for j in range(1, nbar):
+            if j != m:
+                denom *= 1 - m2 / (j * j)
+        fm.append(numer / denom)
+
+    ma = torch.arange(1, nbar, dtype=dtype, device=device, requires_grad=requires_grad)
+    fm_t = torch.tensor(fm, dtype=dtype, device=device, requires_grad=requires_grad)
+    # phase_k = 2*pi * (k - M_ext/2 + 0.5) / M_ext for k in [0, M_ext); fold the
+    # affine scaling into the linspace endpoints so a single factory call emits
+    # the per-sample phase grid.
+    c = 2 * torch.pi / M_ext
+    phase = torch.linspace(
+        c * (0.5 - M_ext / 2),
+        c * (M_ext / 2 - 0.5),
+        steps=M_ext,
+        dtype=dtype,
+        layout=layout,
+        device=device,
+        requires_grad=requires_grad,
+    )
+
+    arg = ma.unsqueeze(-1) * phase
+    window = 1 + 2 * (fm_t.unsqueeze(-1) * torch.cos(arg)).sum(0)
+
+    if norm:
+        # The window peaks at n = (M_ext - 1) / 2, where every cosine term is 1,
+        # so the peak value is exactly 1 + 2 * sum(F_m).
+        window = window / (1.0 + 2.0 * sum(fm))
+
+    return window if sym else window[:-1]

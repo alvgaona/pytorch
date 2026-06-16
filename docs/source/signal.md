@@ -35,4 +35,5 @@ The `torch.signal` module, modeled after SciPy's [signal](https://docs.scipy.org
     hann
     kaiser
     nuttall
+    taylor
 ```

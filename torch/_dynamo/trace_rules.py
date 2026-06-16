@@ -2984,6 +2984,7 @@ torch_non_c_binding_in_graph_functions = dict.fromkeys(
         "torch.signal.windows.windows.merge_dicts",
         "torch.signal.windows.windows.nuttall",
         "torch.signal.windows.windows.parse_kwargs",
+        "torch.signal.windows.windows.taylor",
         "torch.sparse.semi_structured.to_sparse_semi_structured",
         "torch.sparse.sum",
         "torch.split",

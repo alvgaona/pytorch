@@ -116,6 +116,23 @@ def reference_inputs_kaiser_window(op_info, device, dtype, requires_grad, **kwar
         yield SampleInput(size, sym=True, **kw)
 
 
+def reference_inputs_taylor_window(op_info, device, dtype, requires_grad, **kwargs):
+    yield from sample_inputs_window(op_info, device, dtype, requires_grad, **kwargs)
+
+    cases = (
+        (8, {"nbar": 4, "sll": 30}),
+        (16, {"nbar": 5, "sll": 40}),
+        (32, {"nbar": 6, "sll": 50}),
+        (64, {"nbar": 3, "sll": 20}),
+        (128, {"nbar": 4, "sll": 30, "norm": False}),
+        (256, {"nbar": 8, "sll": 100}),
+    )
+
+    for size, kw in cases:
+        yield SampleInput(size, sym=False, **kw)
+        yield SampleInput(size, sym=True, **kw)
+
+
 def reference_inputs_general_cosine_window(
     op_info, device, dtype, requires_grad, **kwargs
 ):
@@ -238,6 +255,18 @@ def error_inputs_kaiser_window(op_info, device, **kwargs):
         SampleInput(3, beta=-1, dtype=torch.float32, device=device, **kwargs),
         error_type=ValueError,
         error_regex="beta must be non-negative, got: -1 instead.",
+    )
+
+
+def error_inputs_taylor_window(op_info, device, **kwargs):
+    # Yield common error inputs
+    yield from error_inputs_window(op_info, device, nbar=4, sll=30, **kwargs)
+
+    # Tests for non-positive nbar
+    yield ErrorInput(
+        SampleInput(3, nbar=0, dtype=torch.float32, device=device, **kwargs),
+        error_type=ValueError,
+        error_regex="taylor window requires nbar >= 1, got nbar=0",
     )
 
 
@@ -455,5 +484,14 @@ op_db: list[OpInfo] = [
         sample_inputs_func=sample_inputs_window,
         reference_inputs_func=reference_inputs_window,
         error_inputs_func=error_inputs_window,
+    ),
+    make_signal_windows_opinfo(
+        name="signal.windows.taylor",
+        ref=reference_signal_window(scipy.signal.windows.taylor)
+        if TEST_SCIPY
+        else None,
+        sample_inputs_func=partial(sample_inputs_window, nbar=4, sll=30.0),
+        reference_inputs_func=partial(reference_inputs_taylor_window, nbar=4, sll=30.0),
+        error_inputs_func=error_inputs_taylor_window,
     ),
 ]

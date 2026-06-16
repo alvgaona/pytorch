@@ -115,6 +115,7 @@ dtensor_fails = {
     xfail("signal.windows.hann"),
     xfail("signal.windows.kaiser"),
     xfail("signal.windows.nuttall"),
+    xfail("signal.windows.taylor"),
     xfail("zeros"),
     # random/stochastic ops: different RNG states between DTensor and reference
     xfail("bernoulli"),
@@ -331,6 +332,7 @@ dtensor_numeric_only_fails = {
     xfail("signal.windows.hann"),
     xfail("signal.windows.kaiser"),
     xfail("signal.windows.nuttall"),
+    xfail("signal.windows.taylor"),
     xfail("sparse.mm", "reduce"),
     xfail("sparse.sampled_addmm"),
     xfail("squeeze_copy"),
