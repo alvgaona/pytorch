@@ -26,6 +26,7 @@ The `torch.signal` module, modeled after SciPy's [signal](https://docs.scipy.org
 
     bartlett
     blackman
+    chebyshev
     cosine
     exponential
     gaussian

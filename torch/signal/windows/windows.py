@@ -1,6 +1,6 @@
 # mypy: allow-untyped-defs
 from collections.abc import Callable, Iterable
-from math import sqrt
+from math import acosh, cosh, sqrt
 from typing import TypeVar
 
 import torch
@@ -11,6 +11,7 @@ from torch._torch_docs import factory_common_args, merge_dicts, parse_kwargs
 __all__ = [
     "bartlett",
     "blackman",
+    "chebyshev",
     "cosine",
     "exponential",
     "gaussian",
@@ -881,3 +882,134 @@ def nuttall(
         device=device,
         requires_grad=requires_grad,
     )
+
+
+@_add_docstr(
+    r"""
+Computes the Dolph-Chebyshev window.
+
+The Dolph-Chebyshev window minimizes the mainlobe width for a given maximum
+sidelobe level: all of its sidelobes share the same level, :attr:`at` decibels
+below the mainlobe. It is obtained by sampling a Chebyshev polynomial in the
+frequency domain and taking the inverse discrete Fourier transform.
+
+The frequency-domain coefficients of the length :math:`M` window are
+
+.. math::
+    W_k = T_{M - 1} \left( \beta \cos \left( \frac{\pi k}{M} \right) \right),
+    \qquad
+    \beta = \cosh \left( \frac{1}{M - 1} \cosh^{-1} \left( 10^{|at| / 20} \right) \right),
+
+where :math:`T_{M - 1}` is the Chebyshev polynomial of the first kind of order
+:math:`M - 1`. The window is the real inverse DFT of :math:`W_k`, normalized so
+that its maximum value is 1.
+    """,
+    r"""
+
+{normalization}
+
+Args:
+    {M}
+
+Keyword args:
+    at (float, optional): the attenuation of the sidelobes relative to the
+        mainlobe, in decibels (dB). Default: 100.0.
+    {sym}
+    {dtype}
+    {layout}
+    {device}
+    {requires_grad}
+
+References::
+
+    - C. L. Dolph, "A current distribution for broadside arrays which optimizes
+      the relationship between beam width and side-lobe level", 1946.
+
+    - Julius O. Smith, "Dolph-Chebyshev Window",
+      https://ccrma.stanford.edu/~jos/sasp/Dolph_Chebyshev_Window.html
+
+Examples::
+
+    >>> # Generates a symmetric Dolph-Chebyshev window with 100 dB attenuation.
+    >>> torch.signal.windows.chebyshev(10)
+    tensor([0.0151, 0.1044, 0.3446, 0.7093, 1.0000, 1.0000, 0.7093, 0.3446, 0.1044, 0.0151])
+
+    >>> # Generates a Dolph-Chebyshev window with 60 dB attenuation.
+    >>> torch.signal.windows.chebyshev(10, at=60)
+    tensor([0.0443, 0.1889, 0.4573, 0.7775, 1.0000, 1.0000, 0.7775, 0.4573, 0.1889, 0.0443])
+""".format(**window_common_args),
+)
+def chebyshev(
+    M: int,
+    *,
+    at: float = 100.0,
+    sym: bool = True,
+    dtype: torch.dtype | None = None,
+    layout: torch.layout = torch.strided,
+    device: torch.device | None = None,
+    requires_grad: bool = False,
+) -> Tensor:
+    if dtype is None:
+        dtype = torch.get_default_dtype()
+
+    _window_function_checks("chebyshev", M, dtype, layout)
+
+    if M == 0:
+        return torch.empty(
+            (0,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad
+        )
+
+    if M == 1:
+        return torch.ones(
+            (1,), dtype=dtype, layout=layout, device=device, requires_grad=requires_grad
+        )
+
+    # For periodic windows compute the symmetric window of length M + 1 and drop
+    # the last sample, matching SciPy's extend/truncate convention.
+    M_ext = M if sym else M + 1
+    order = M_ext - 1.0
+    beta = cosh(acosh(10.0 ** (abs(at) / 20.0)) / order)
+
+    # angle_k = pi * k / M_ext for k in [0, M_ext); fold the affine scaling into
+    # the linspace endpoints so a single factory call emits the sampling grid.
+    angle = torch.linspace(
+        0.0,
+        torch.pi * (M_ext - 1) / M_ext,
+        steps=M_ext,
+        dtype=dtype,
+        layout=layout,
+        device=device,
+        requires_grad=requires_grad,
+    )
+    x = beta * torch.cos(angle)
+
+    # Evaluate the order-(M - 1) Chebyshev polynomial T at x using its analytic
+    # piecewise form. Inputs are clamped into each branch's valid domain so the
+    # unselected branches never produce NaNs.
+    sign = 2 * (M_ext % 2) - 1
+    p = torch.where(
+        x.abs() <= 1,
+        torch.cos(order * torch.arccos(x.clamp(-1.0, 1.0))),
+        torch.where(
+            x > 1,
+            torch.cosh(order * torch.arccosh(x.clamp(min=1.0))),
+            sign * torch.cosh(order * torch.arccosh((-x).clamp(min=1.0))),
+        ),
+    )
+
+    # Real inverse DFT of the frequency-domain coefficients, assembled to a
+    # symmetric window. Odd and even lengths need slightly different handling.
+    if M_ext % 2:
+        w = torch.fft.fft(p).real
+        n = (M_ext + 1) // 2
+        w = w[:n]
+        window = torch.cat((w[1:n].flip(0), w))
+    else:
+        p = p * torch.exp(1j * angle)
+        w = torch.fft.fft(p).real
+        n = M_ext // 2 + 1
+        window = torch.cat((w[1:n].flip(0), w[1:n]))
+
+    window = window / window.max()
+
+    return window if sym else window[:-1]

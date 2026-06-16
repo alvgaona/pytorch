@@ -1,6 +1,7 @@
 from .windows import (
     bartlett,
     blackman,
+    chebyshev,
     cosine,
     exponential,
     gaussian,
@@ -16,6 +17,7 @@ from .windows import (
 __all__ = [
     "bartlett",
     "blackman",
+    "chebyshev",
     "cosine",
     "exponential",
     "gaussian",

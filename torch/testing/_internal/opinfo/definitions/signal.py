@@ -116,6 +116,24 @@ def reference_inputs_kaiser_window(op_info, device, dtype, requires_grad, **kwar
         yield SampleInput(size, sym=True, **kw)
 
 
+def reference_inputs_chebyshev_window(op_info, device, dtype, requires_grad, **kwargs):
+    yield from sample_inputs_window(op_info, device, dtype, requires_grad, **kwargs)
+
+    # All attenuations are >= 45 dB, below which SciPy emits a warning.
+    cases = (
+        (8, {"at": 50}),
+        (16, {"at": 60}),
+        (32, {"at": 80}),
+        (64, {"at": 100}),
+        (128, {"at": 120}),
+        (256, {"at": 90}),
+    )
+
+    for size, kw in cases:
+        yield SampleInput(size, sym=False, **kw)
+        yield SampleInput(size, sym=True, **kw)
+
+
 def reference_inputs_general_cosine_window(
     op_info, device, dtype, requires_grad, **kwargs
 ):
@@ -380,6 +398,15 @@ op_db: list[OpInfo] = [
         else None,
         sample_inputs_func=sample_inputs_window,
         reference_inputs_func=reference_inputs_window,
+        error_inputs_func=error_inputs_window,
+    ),
+    make_signal_windows_opinfo(
+        name="signal.windows.chebyshev",
+        ref=reference_signal_window(scipy.signal.windows.chebwin)
+        if TEST_SCIPY
+        else None,
+        sample_inputs_func=partial(sample_inputs_window, at=100.0),
+        reference_inputs_func=partial(reference_inputs_chebyshev_window, at=100.0),
         error_inputs_func=error_inputs_window,
     ),
     make_signal_windows_opinfo(

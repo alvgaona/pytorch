@@ -2973,6 +2973,7 @@ torch_non_c_binding_in_graph_functions = dict.fromkeys(
         "torch.signal.windows.windows._window_function_checks",
         "torch.signal.windows.windows.bartlett",
         "torch.signal.windows.windows.blackman",
+        "torch.signal.windows.windows.chebyshev",
         "torch.signal.windows.windows.cosine",
         "torch.signal.windows.windows.exponential",
         "torch.signal.windows.windows.gaussian",

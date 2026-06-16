@@ -232,6 +232,7 @@ ops_unbacked_skip = {
     skip("scalar_tensor"),
     skip("signal.windows.bartlett"),
     skip("signal.windows.blackman"),
+    skip("signal.windows.chebyshev"),
     skip("signal.windows.cosine"),
     skip("signal.windows.exponential"),
     skip("signal.windows.gaussian"),

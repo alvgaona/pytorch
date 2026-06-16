@@ -912,6 +912,7 @@ if torch.backends.mps.is_available():
             "randn": [torch.float16, torch.float32],
             "signal.windows.bartlett": [torch.float32],
             "signal.windows.blackman": [torch.float32],
+            "signal.windows.chebyshev": [torch.float32],
             "signal.windows.cosine": [torch.float32],
             "signal.windows.exponential": [torch.float32],
             "signal.windows.gaussian": [torch.float32],
